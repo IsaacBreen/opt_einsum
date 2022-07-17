@@ -49,7 +49,7 @@ def _import_func(func: str, backend: str, default: Any = None) -> Any:
     except AttributeError:
         error_msg = (
             "{} doesn't seem to provide the function {} - see "
-            "https://optimized-einsum.readthedocs.io/en/latest/backends.html "
+            "https://dgasmith.github.io/opt_einsum/getting_started/backends/ "
             "for details on which functions are required for which contractions."
         )
         raise AttributeError(error_msg.format(backend, func))
