@@ -2,6 +2,7 @@
 Contains helper functions for opt_einsum testing scripts
 """
 
+
 from typing import Any, Collection, Dict, FrozenSet, Iterable, List, Optional, Tuple, Union, overload
 
 import numpy as np
@@ -13,7 +14,7 @@ __all__ = ["build_views", "compute_size_by_dict", "find_contraction", "flop_coun
 
 _valid_chars = "abcdefghijklmopqABC"
 _sizes = np.array([2, 3, 4, 5, 4, 3, 2, 6, 5, 4, 3, 2, 5, 7, 4, 3, 2, 3, 4])
-_default_dim_dict = {c: s for c, s in zip(_valid_chars, _sizes)}
+_default_dim_dict = dict(zip(_valid_chars, _sizes))
 
 
 def build_views(string: str, dimension_dict: Optional[Dict[str, int]] = None) -> List[np.ndarray]:
@@ -306,7 +307,4 @@ def rand_equation(
 
     ret = (eq, shapes)
 
-    if return_size_dict:
-        return ret + (size_dict,)
-    else:
-        return ret
+    return ret + (size_dict,) if return_size_dict else ret

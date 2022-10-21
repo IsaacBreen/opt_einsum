@@ -11,7 +11,7 @@ from opt_einsum import contract, contract_path
 def build_views(string):
     chars = "abcdefghij"
     sizes = np.array([2, 3, 4, 5, 4, 3, 2, 6, 5, 4])
-    sizes = {c: s for c, s in zip(chars, sizes)}
+    sizes = dict(zip(chars, sizes))
 
     views = []
 
@@ -78,7 +78,7 @@ def test_type_errors():
         contract(views[0], [Ellipsis, 0], [Ellipsis, ["a"]])
 
     with pytest.raises(TypeError):
-        contract(views[0], [Ellipsis, dict()], [Ellipsis, "a"])
+        contract(views[0], [Ellipsis, {}], [Ellipsis, "a"])
 
 
 def test_value_errors():

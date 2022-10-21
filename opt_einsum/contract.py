@@ -55,7 +55,7 @@ class PathInfo:
         self.size_dict = size_dict
 
         self.shapes = [tuple(size_dict[k] for k in ks) for ks in input_subscripts.split(",")]
-        self.eq = "{}->{}".format(input_subscripts, output_subscript)
+        self.eq = f"{input_subscripts}->{output_subscript}"
         self.largest_intermediate = Decimal(max(size_list))
 
     def __repr__(self) -> str:
@@ -63,17 +63,20 @@ class PathInfo:
         header = ("scaling", "BLAS", "current", "remaining")
 
         path_print = [
-            "  Complete contraction:  {}\n".format(self.eq),
-            "         Naive scaling:  {}\n".format(len(self.indices)),
-            "     Optimized scaling:  {}\n".format(max(self.scale_list)),
+            f"  Complete contraction:  {self.eq}\n",
+            f"         Naive scaling:  {len(self.indices)}\n",
+            f"     Optimized scaling:  {max(self.scale_list)}\n",
             "      Naive FLOP count:  {:.3e}\n".format(self.naive_cost),
             "  Optimized FLOP count:  {:.3e}\n".format(self.opt_cost),
             "   Theoretical speedup:  {:.3e}\n".format(self.speedup),
-            "  Largest intermediate:  {:.3e} elements\n".format(self.largest_intermediate),
+            "  Largest intermediate:  {:.3e} elements\n".format(
+                self.largest_intermediate
+            ),
             "-" * 80 + "\n",
             "{:>6} {:>11} {:>22} {:>37}\n".format(*header),
             "-" * 80,
         ]
+
 
         for n, contraction in enumerate(self.contraction_list):
             _, _, einsum_str, remaining, do_blas = contraction
@@ -109,7 +112,7 @@ def _choose_memory_arg(memory_limit: int, size_list: List[int]) -> Optional[int]
         else:
             raise ValueError("Memory limit must be larger than 0, or -1")
 
-    return int(memory_limit)
+    return memory_limit
 
 
 _VALID_CONTRACT_KWARGS = {
@@ -239,7 +242,10 @@ def contract_path(*operands_: Any, **kwargs: Any) -> Tuple[PathType, PathInfo]:
     # Make sure all keywords are valid
     unknown_kwargs = set(kwargs) - _VALID_CONTRACT_KWARGS
     if len(unknown_kwargs):
-        raise TypeError("einsum_path: Did not understand the following kwargs: {}".format(unknown_kwargs))
+        raise TypeError(
+            f"einsum_path: Did not understand the following kwargs: {unknown_kwargs}"
+        )
+
 
     path_type = kwargs.pop("optimize", "auto")
 
@@ -256,10 +262,7 @@ def contract_path(*operands_: Any, **kwargs: Any) -> Tuple[PathType, PathInfo]:
     # Build a few useful list and sets
     input_list = input_subscripts.split(",")
     input_sets = [frozenset(x) for x in input_list]
-    if shapes:
-        input_shapes = operands
-    else:
-        input_shapes = [x.shape for x in operands]
+    input_shapes = operands if shapes else [x.shape for x in operands]
     output_set = frozenset(output_subscript)
     indices = frozenset(input_subscripts.replace(",", ""))
 
@@ -270,23 +273,22 @@ def contract_path(*operands_: Any, **kwargs: Any) -> Tuple[PathType, PathInfo]:
 
         if len(sh) != len(term):
             raise ValueError(
-                "Einstein sum subscript '{}' does not contain the "
-                "correct number of indices for operand {}.".format(input_list[tnum], tnum)
+                f"Einstein sum subscript '{input_list[tnum]}' does not contain the correct number of indices for operand {tnum}."
             )
+
         for cnum, char in enumerate(term):
             dim = int(sh[cnum])
 
-            if char in size_dict:
-                # For broadcasting cases we always want the largest dim size
-                if size_dict[char] == 1:
-                    size_dict[char] = dim
-                elif dim not in (1, size_dict[char]):
-                    raise ValueError(
-                        "Size of label '{}' for operand {} ({}) does not match previous "
-                        "terms ({}).".format(char, tnum, size_dict[char], dim)
-                    )
-            else:
+            if (
+                char in size_dict
+                and size_dict[char] == 1
+                or char not in size_dict
+            ):
                 size_dict[char] = dim
+            elif dim not in (1, size_dict[char]):
+                raise ValueError(
+                    f"Size of label '{char}' for operand {tnum} ({size_dict[char]}) does not match previous terms ({dim})."
+                )
 
     # Compute size of each input array plus the output array
     size_list = [helpers.compute_size_by_dict(term, size_dict) for term in input_list + [output_subscript]]
@@ -359,11 +361,7 @@ def contract_path(*operands_: Any, **kwargs: Any) -> Tuple[PathType, PathInfo]:
 
         # for large expressions saving the remaining terms at each step can
         # incur a large memory footprint - and also be messy to print
-        if len(input_list) <= 20:
-            remaining: Optional[Tuple[str, ...]] = tuple(input_list)
-        else:
-            remaining = None
-
+        remaining = tuple(input_list) if len(input_list) <= 20 else None
         contraction = (contract_inds, idx_removed, einsum_str, remaining, do_blas)
         contraction_list.append(contraction)
 
@@ -403,7 +401,7 @@ def _einsum(*operands, **kwargs):
 
         # Explicitly find output str first so as to maintain order
         if "->" not in einsum_str:
-            einsum_str += "->" + parser.find_output_str(einsum_str)
+            einsum_str += f"->{parser.find_output_str(einsum_str)}"
 
         einsum_str = parser.convert_to_valid_einsum_chars(einsum_str)
 
@@ -522,9 +520,9 @@ def contract(*operands_: Any, **kwargs: Any) -> ArrayType:
     constants_dict = kwargs.pop("_constants_dict", {})
 
     # Make sure remaining keywords are valid for einsum
-    unknown_kwargs = [k for (k, v) in kwargs.items() if k not in valid_einsum_kwargs]
+    unknown_kwargs = [k for k in kwargs if k not in valid_einsum_kwargs]
     if len(unknown_kwargs):
-        raise TypeError("Did not understand the following kwargs: {}".format(unknown_kwargs))
+        raise TypeError(f"Did not understand the following kwargs: {unknown_kwargs}")
 
     if gen_expression:
         full_str = operands_[0]
@@ -562,10 +560,7 @@ def parse_backend(arrays: Sequence[ArrayType], backend: Optional[str]) -> str:
 
     # some arrays will be defined in modules that don't implement tensordot
     # etc. so instead default to numpy
-    if not backends.has_tensordot(backend):
-        return "numpy"
-
-    return backend
+    return backend if backends.has_tensordot(backend) else "numpy"
 
 
 def _core_contract(
@@ -634,10 +629,9 @@ def _core_contract(
                 transpose = tuple(map(tensor_result.index, results_index))
                 new_view = _transpose(new_view, axes=transpose, backend=backend)
 
-                if handle_out:
-                    out_array[:] = new_view
+            if handle_out:
+                out_array[:] = new_view
 
-        # Call einsum
         else:
             # If out was specified
             if handle_out:
@@ -650,10 +644,7 @@ def _core_contract(
         operands.append(new_view)
         del tmp_operands, new_view
 
-    if specified_out:
-        return out_array
-    else:
-        return operands[0]
+    return out_array if specified_out else operands[0]
 
 
 def format_const_einsum_str(einsum_str: str, constants: Iterable[int]) -> str:
@@ -673,9 +664,12 @@ def format_const_einsum_str(einsum_str: str, constants: Iterable[int]) -> str:
     else:
         lhs, rhs, arrow = einsum_str, "", ""
 
-    wrapped_terms = ["[{}]".format(t) if i in constants else t for i, t in enumerate(lhs.split(","))]
+    wrapped_terms = [
+        f"[{t}]" if i in constants else t for i, t in enumerate(lhs.split(","))
+    ]
 
-    formatted_einsum_str = "{}{}{}".format(",".join(wrapped_terms), arrow, rhs)
+
+    formatted_einsum_str = f'{",".join(wrapped_terms)}{arrow}{rhs}'
 
     # merge adjacent constants
     formatted_einsum_str = formatted_einsum_str.replace("],[", ",")
@@ -814,17 +808,17 @@ class ContractExpression:
 
         if kwargs:
             raise ValueError(
-                "The only valid keyword arguments to a `ContractExpression` "
-                "call are `out=` or `backend=`. Got: {}.".format(kwargs)
+                f"The only valid keyword arguments to a `ContractExpression` call are `out=` or `backend=`. Got: {kwargs}."
             )
+
 
         correct_num_args = self._full_num_args if evaluate_constants else self.num_args
 
         if len(arrays) != correct_num_args:
             raise ValueError(
-                "This `ContractExpression` takes exactly {} array arguments "
-                "but received {}.".format(self.num_args, len(arrays))
+                f"This `ContractExpression` takes exactly {self.num_args} array arguments but received {len(arrays)}."
             )
+
 
         if self._constants_dict and not evaluate_constants:
             # fill in the missing non-constant terms with newly supplied arrays
@@ -844,27 +838,25 @@ class ContractExpression:
         except ValueError as err:
             original_msg = str(err.args) if err.args else ""
             msg = (
-                "Internal error while evaluating `ContractExpression`. Note that few checks are performed"
-                " - the number and rank of the array arguments must match the original expression. "
-                "The internal error was: '{}'".format(original_msg),
+                f"Internal error while evaluating `ContractExpression`. Note that few checks are performed - the number and rank of the array arguments must match the original expression. The internal error was: '{original_msg}'",
             )
+
             err.args = msg
             raise
 
     def __repr__(self) -> str:
         if self._constants_dict:
-            constants_repr = ", constants={}".format(sorted(self._constants_dict))
+            constants_repr = f", constants={sorted(self._constants_dict)}"
         else:
             constants_repr = ""
-        return "<ContractExpression('{}'{})>".format(self.contraction, constants_repr)
+        return f"<ContractExpression('{self.contraction}'{constants_repr})>"
 
     def __str__(self) -> str:
         s = [self.__repr__()]
         for i, c in enumerate(self.contraction_list):
-            s.append("\n  {}.  ".format(i + 1))
-            s.append("'{}'".format(c[2]) + (" [{}]".format(c[-1]) if c[-1] else ""))
+            s.extend((f"\n  {i + 1}.  ", f"'{c[2]}'" + (f" [{c[-1]}]" if c[-1] else "")))
         if self.einsum_kwargs:
-            s.append("\neinsum_kwargs={}".format(self.einsum_kwargs))
+            s.append(f"\neinsum_kwargs={self.einsum_kwargs}")
         return "".join(s)
 
 
@@ -942,9 +934,9 @@ def contract_expression(subscripts: str, *shapes: PathType, **kwargs: Any) -> An
     for arg in ("out", "backend"):
         if kwargs.get(arg, None) is not None:
             raise ValueError(
-                "'{}' should only be specified when calling a "
-                "`ContractExpression`, not when building it.".format(arg)
+                f"'{arg}' should only be specified when calling a `ContractExpression`, not when building it."
             )
+
 
     if not isinstance(subscripts, str):
         subscripts, shapes = parser.convert_interleaved_input((subscripts,) + shapes)

@@ -31,15 +31,14 @@ max_indices = 6
 max_doubles = 1e7
 
 alpha = list("abcdefghijklmnopqrstuvwyxz")
-alpha_dict = {num: x for num, x in enumerate(alpha)}
+alpha_dict = dict(enumerate(alpha))
 
 print("Maximum term size is %d" % (max_size**max_dims))
 
 
 def make_term():
     num_dims = np.random.randint(min_dims, max_dims + 1)
-    term = np.random.randint(0, max_indices, num_dims)
-    return term
+    return np.random.randint(0, max_indices, num_dims)
 
 
 def get_string(term):
@@ -55,7 +54,7 @@ def random_contraction():
     index_size = np.random.randint(min_size, max_size, max_indices)
 
     # Build random terms and views
-    int_terms = [make_term() for x in range(num_terms)]
+    int_terms = [make_term() for _ in range(num_terms)]
     views = [np.random.rand(*index_size[s]) for s in int_terms]
 
     # Compute einsum string and return string
@@ -69,7 +68,7 @@ def random_contraction():
 
 
 out = []
-for x in range(200):
+for _ in range(200):
     sum_string, views, index_size = random_contraction()
 
     try:

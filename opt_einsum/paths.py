@@ -589,9 +589,7 @@ def _update_ref_counts(
 def _simple_chooser(queue, remaining):
     """Default contraction chooser that simply takes the minimum cost option."""
     cost, k1, k2, k12 = heapq.heappop(queue)
-    if k1 not in remaining or k2 not in remaining:
-        return None  # candidate is obsolete
-    return cost, k1, k2, k12
+    return (cost, k1, k2, k12) if k1 in remaining and k2 in remaining else None
 
 
 def ssa_greedy_optimize(
@@ -649,15 +647,18 @@ def ssa_greedy_optimize(
     # used it can be contracted. Since we specialize to binary ops, we only care about
     # ref counts of >=2 or >=3.
     dim_ref_counts = {
-        count: set(dim for dim, keys in dim_to_keys.items() if len(keys) >= count) - output for count in [2, 3]
+        count: {dim for dim, keys in dim_to_keys.items() if len(keys) >= count}
+        - output
+        for count in [2, 3]
     }
+
 
     # Compute separable part of the objective function for contractions.
     footprints = {key: compute_size_by_dict(key, sizes) for key in remaining}
 
     # Find initial candidate contractions.
     queue: List[GreedyContractionType] = []
-    for dim, dim_keys in dim_to_keys.items():
+    for dim_keys in dim_to_keys.values():
         dim_keys_list = sorted(dim_keys, key=remaining.__getitem__)
         for i, k1 in enumerate(dim_keys_list[:-1]):
             k2s_guess = dim_keys_list[1 + i :]
@@ -700,7 +701,7 @@ def ssa_greedy_optimize(
 
         # Find new candidate contractions.
         k1 = k12
-        k2s = set(k2 for dim in k1 for k2 in dim_to_keys[dim])
+        k2s = {k2 for dim in k1 for k2 in dim_to_keys[dim]}
         k2s.discard(k1)
         if k2s:
             _push_candidate(
@@ -822,12 +823,12 @@ def _tree_to_sequence(tree: Tuple[Any, ...]) -> PathType:
     t: List[int] = []  # list of elementary tensors (upper part of columns)
     s: List[Tuple[int, ...]] = []  # resulting contraction sequence
 
-    while len(c) > 0:
+    while c:
         j = c.pop(-1)
         s.insert(0, tuple())
 
         for i in sorted([i for i in j if type(i) == int]):
-            s[0] += (sum(1 for q in t if q < i),)
+            s[0] += (sum(q < i for q in t), )
             t.insert(s[0][-1], i)
 
         for i_tup in [i_tup for i_tup in j if type(i_tup) != int]:
@@ -867,10 +868,10 @@ def _find_disconnected_subgraphs(inputs: List[FrozenSet[int]], output: FrozenSet
 
     i_sum = frozenset.union(*inputs) - output  # all summation indices
 
-    while len(unused_inputs) > 0:
+    while unused_inputs:
         g = set()
         q = [unused_inputs.pop()]
-        while len(q) > 0:
+        while q:
             j = q.pop()
             g.add(j)
             i_tmp = i_sum & inputs[j]
@@ -898,10 +899,7 @@ def _dp_calc_legs(g, all_tensors, s, inputs, i1_cut_i2_wo_output, i1_union_i2):
     """Calculates the effective outer indices of the intermediate tensor
     corresponding to the subgraph ``s``.
     """
-    # set of remaining tensors (=g-s)
-    r = g & (all_tensors ^ s)
-    # indices of remaining indices:
-    if r:
+    if r := g & (all_tensors ^ s):
         i_r = frozenset.union(*_bitmap_select(r, inputs))
     else:
         i_r = frozenset()
@@ -975,10 +973,12 @@ def _dp_compare_size(
     i = _dp_calc_legs(g, all_tensors, s, inputs, i1_cut_i2_wo_output, i1_union_i2)
     mem = compute_size_by_dict(i, size_dict)
     cost = max(cost1, cost2, mem)
-    if cost <= cost_cap:
-        if s not in xn or cost < xn[s][1]:
-            if memory_limit is None or mem <= memory_limit:
-                xn[s] = (i, cost, (contract1, contract2))
+    if (
+        cost <= cost_cap
+        and (s not in xn or cost < xn[s][1])
+        and (memory_limit is None or mem <= memory_limit)
+    ):
+        xn[s] = (i, cost, (contract1, contract2))
 
 
 def _dp_compare_write(
@@ -1006,10 +1006,12 @@ def _dp_compare_write(
     i = _dp_calc_legs(g, all_tensors, s, inputs, i1_cut_i2_wo_output, i1_union_i2)
     mem = compute_size_by_dict(i, size_dict)
     cost = cost1 + cost2 + mem
-    if cost <= cost_cap:
-        if s not in xn or cost < xn[s][1]:
-            if memory_limit is None or mem <= memory_limit:
-                xn[s] = (i, cost, (contract1, contract2))
+    if (
+        cost <= cost_cap
+        and (s not in xn or cost < xn[s][1])
+        and (memory_limit is None or mem <= memory_limit)
+    ):
+        xn[s] = (i, cost, (contract1, contract2))
 
 
 DEFAULT_COMBO_FACTOR = 64
@@ -1042,10 +1044,12 @@ def _dp_compare_combo(
     mem = compute_size_by_dict(i, size_dict)
     f = compute_size_by_dict(i1_union_i2, size_dict)
     cost = cost1 + cost2 + combine((f, factor * mem))
-    if cost <= cost_cap:
-        if s not in xn or cost < xn[s][1]:
-            if memory_limit is None or mem <= memory_limit:
-                xn[s] = (i, cost, (contract1, contract2))
+    if (
+        cost <= cost_cap
+        and (s not in xn or cost < xn[s][1])
+        and (memory_limit is None or mem <= memory_limit)
+    ):
+        xn[s] = (i, cost, (contract1, contract2))
 
 
 minimize_finder = re.compile(r"(flops|size|write|combo|limit)-*(\d*)")
@@ -1248,7 +1252,7 @@ class DynamicProgramming(PathOptimizer):
             # the set of n tensors is represented by a bitmap: if bit j is 1,
             # tensor j is in the set, e.g. 0b100101 = {0,2,5}; set unions
             # (intersections) can then be computed by bitwise or (and);
-            x: List[Any] = [None] * 2 + [dict() for j in range(len(g) - 1)]  # type: ignore
+            x: List[Any] = [None] * 2 + [{} for j in range(len(g) - 1)]
             x[1] = OrderedDict((1 << j, (inputs[j], 0, inputs_contractions[j])) for j in g)
 
             # convert set of tensors g to a bitmap set:
@@ -1344,9 +1348,7 @@ def dynamic_programming(
     return optimizer(inputs, output, size_dict, memory_limit)
 
 
-_AUTO_CHOICES = {}
-for i in range(1, 5):
-    _AUTO_CHOICES[i] = optimal
+_AUTO_CHOICES = {i: optimal for i in range(1, 5)}
 for i in range(5, 7):
     _AUTO_CHOICES[i] = branch_all
 for i in range(7, 9):
@@ -1368,9 +1370,7 @@ def auto(
     return _AUTO_CHOICES.get(N, greedy)(inputs, output, size_dict, memory_limit)
 
 
-_AUTO_HQ_CHOICES = {}
-for i in range(1, 6):
-    _AUTO_HQ_CHOICES[i] = optimal
+_AUTO_HQ_CHOICES = {i: optimal for i in range(1, 6)}
 for i in range(6, 17):
     _AUTO_HQ_CHOICES[i] = dynamic_programming
 
@@ -1410,7 +1410,7 @@ _PATH_OPTIONS: Dict[str, PathSearchFunctionType] = {
 def register_path_fn(name: str, fn: PathSearchFunctionType) -> None:
     """Add path finding function ``fn`` as an option with ``name``."""
     if name in _PATH_OPTIONS:
-        raise KeyError("Path optimizer '{}' already exists.".format(name))
+        raise KeyError(f"Path optimizer '{name}' already exists.")
 
     _PATH_OPTIONS[name.lower()] = fn
 
@@ -1420,7 +1420,8 @@ def get_path_fn(path_type: str) -> PathSearchFunctionType:
     path_type = path_type.lower()
     if path_type not in _PATH_OPTIONS:
         raise KeyError(
-            "Path optimizer '{}' not found, valid options are {}.".format(path_type, set(_PATH_OPTIONS.keys()))
+            f"Path optimizer '{path_type}' not found, valid options are {set(_PATH_OPTIONS.keys())}."
         )
+
 
     return _PATH_OPTIONS[path_type]

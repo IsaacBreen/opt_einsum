@@ -78,8 +78,8 @@ def test_complete_sharing(backend):
         actual = count_cached_ops(cache)
 
     print("-" * 40)
-    print("Without sharing: {} expressions".format(expected))
-    print("With sharing: {} expressions".format(actual))
+    print(f"Without sharing: {expected} expressions")
+    print(f"With sharing: {actual} expressions")
     assert actual == expected
 
 
@@ -104,8 +104,8 @@ def test_sharing_reused_cache(backend):
         actual = count_cached_ops(cache)
 
     print("-" * 40)
-    print("Without sharing: {} expressions".format(expected))
-    print("With sharing: {} expressions".format(actual))
+    print(f"Without sharing: {expected} expressions")
+    print(f"With sharing: {actual} expressions")
     assert actual == expected
 
 
@@ -132,8 +132,8 @@ def test_no_sharing_separate_cache(backend):
         actual.update(count_cached_ops(cache2))
 
     print("-" * 40)
-    print("Without sharing: {} expressions".format(expected))
-    print("With sharing: {} expressions".format(actual))
+    print(f"Without sharing: {expected} expressions")
+    print(f"With sharing: {actual} expressions")
     assert actual == expected
 
 
@@ -196,13 +196,13 @@ def test_sharing_modulo_commutativity(eq, backend):
         for permuted in itertools.permutations(zip(inputs, ops)):
             permuted_inputs = [p[0] for p in permuted]
             permuted_ops = [p[1] for p in permuted]
-            permuted_eq = "{}->{}".format(",".join(permuted_inputs), output)
+            permuted_eq = f'{",".join(permuted_inputs)}->{output}'
             _einsum(permuted_eq, *permuted_ops, backend=backend)
         actual = count_cached_ops(cache)
 
     print("-" * 40)
-    print("Without sharing: {} expressions".format(expected))
-    print("With sharing: {} expressions".format(actual))
+    print(f"Without sharing: {expected} expressions")
+    print(f"With sharing: {actual} expressions")
     assert actual == expected
 
 
@@ -231,8 +231,8 @@ def test_partial_sharing(backend):
         num_exprs_sharing = count_cached_ops(cache)
 
     print("-" * 40)
-    print("Without sharing: {} expressions".format(num_exprs_nosharing))
-    print("With sharing: {} expressions".format(num_exprs_sharing))
+    print(f"Without sharing: {num_exprs_nosharing} expressions")
+    print(f"With sharing: {num_exprs_sharing} expressions")
     assert num_exprs_nosharing["einsum"] > num_exprs_sharing["einsum"]
 
 
@@ -240,7 +240,7 @@ def test_partial_sharing(backend):
 def test_sharing_with_constants(backend):
     inputs = "ij,jk,kl"
     outputs = "ijkl"
-    equations = ["{}->{}".format(inputs, output) for output in outputs]
+    equations = [f"{inputs}->{output}" for output in outputs]
     shapes = (2, 3), (3, 4), (4, 5)
     constants = {0, 2}
     ops = [np.random.rand(*shp) if i in constants else shp for i, shp in enumerate(shapes)]
@@ -252,7 +252,7 @@ def test_sharing_with_constants(backend):
         actual = [contract_expression(eq, *ops, constants=constants)(var) for eq in equations]
 
     for dim, expected_dim, actual_dim in zip(outputs, expected, actual):
-        assert np.allclose(expected_dim, actual_dim), "error at {}".format(dim)
+        assert np.allclose(expected_dim, actual_dim), f"error at {dim}"
 
 
 @pytest.mark.parametrize("size", [3, 4, 5])
@@ -268,7 +268,7 @@ def test_chain(size, backend):
         print(inputs)
         for i in range(size + 1):
             target = alphabet[i]
-            eq = "{}->{}".format(inputs, target)
+            eq = f"{inputs}->{target}"
             path_info = contract_path(eq, *xs)
             print(path_info[1])
             expr = contract_expression(eq, *shapes)
@@ -289,7 +289,7 @@ def test_chain_2(size, backend):
         print(inputs)
         for i in range(size):
             target = alphabet[i : i + 2]
-            eq = "{}->{}".format(inputs, target)
+            eq = f"{inputs}->{target}"
             path_info = contract_path(eq, *xs)
             print(path_info[1])
             expr = contract_expression(eq, *shapes)
@@ -315,15 +315,15 @@ def test_chain_2_growth(backend):
         with shared_intermediates() as cache:
             for i in range(size):
                 target = alphabet[i : i + 2]
-                eq = "{}->{}".format(inputs, target)
+                eq = f"{inputs}->{target}"
                 expr = contract_expression(eq, *(x.shape for x in xs))
                 expr(*xs, backend=backend)
             costs.append(_compute_cost(cache))
 
-    print("sizes = {}".format(repr(sizes)))
-    print("costs = {}".format(repr(costs)))
+    print(f"sizes = {repr(sizes)}")
+    print(f"costs = {repr(costs)}")
     for size, cost in zip(sizes, costs):
-        print("{}\t{}".format(size, cost))
+        print(f"{size}\t{cost}")
 
 
 @pytest.mark.parametrize("size", [3, 4, 5])
@@ -338,7 +338,7 @@ def test_chain_sharing(size, backend):
     for i in range(size + 1):
         with shared_intermediates() as cache:
             target = alphabet[i]
-            eq = "{}->{}".format(inputs, target)
+            eq = f"{inputs}->{target}"
             expr = contract_expression(eq, *(x.shape for x in xs))
             expr(*xs, backend=backend)
             num_exprs_nosharing += _compute_cost(cache)
@@ -347,7 +347,7 @@ def test_chain_sharing(size, backend):
         print(inputs)
         for i in range(size + 1):
             target = alphabet[i]
-            eq = "{}->{}".format(inputs, target)
+            eq = f"{inputs}->{target}"
             path_info = contract_path(eq, *xs)
             print(path_info[1])
             expr = contract_expression(eq, *(x.shape for x in xs))
@@ -355,8 +355,8 @@ def test_chain_sharing(size, backend):
         num_exprs_sharing = _compute_cost(cache)
 
     print("-" * 40)
-    print("Without sharing: {} expressions".format(num_exprs_nosharing))
-    print("With sharing: {} expressions".format(num_exprs_sharing))
+    print(f"Without sharing: {num_exprs_nosharing} expressions")
+    print(f"With sharing: {num_exprs_sharing} expressions")
     assert num_exprs_nosharing > num_exprs_sharing
 
 

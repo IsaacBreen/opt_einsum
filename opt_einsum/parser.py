@@ -198,10 +198,7 @@ def possibly_convert_to_numpy(x: Any) -> Any:
     <__main__.Shape object at 0x10f850710>
     """
 
-    if not hasattr(x, "shape"):
-        return np.asanyarray(x)
-    else:
-        return x
+    return x if hasattr(x, "shape") else np.asanyarray(x)
 
 
 def convert_subscripts(old_sub: List[Any], symbol_map: Dict[Any, Any]) -> str:
@@ -214,14 +211,7 @@ def convert_subscripts(old_sub: List[Any], symbol_map: Dict[Any, Any]) -> str:
     >>> oe.parser.convert_subscripts([Ellipsis, object], {object:'a'})
     '...a'
     """
-    new_sub = ""
-    for s in old_sub:
-        if s is Ellipsis:
-            new_sub += "..."
-        else:
-            # no need to try/except here because symbol_map has already been checked
-            new_sub += symbol_map[s]
-    return new_sub
+    return "".join("..." if s is Ellipsis else symbol_map[s] for s in old_sub)
 
 
 def convert_interleaved_input(operands: List[Any]) -> Tuple[str, List[Any]]:
@@ -229,7 +219,7 @@ def convert_interleaved_input(operands: List[Any]) -> Tuple[str, List[Any]]:
     tmp_operands = list(operands)
     operand_list = []
     subscript_list = []
-    for p in range(len(operands) // 2):
+    for _ in range(len(operands) // 2):
         operand_list.append(tmp_operands.pop(0))
         subscript_list.append(tmp_operands.pop(0))
 
@@ -343,11 +333,7 @@ def parse_einsum_input(operands: Any) -> Tuple[str, str, List[ArrayType]]:
         subscripts = ",".join(split_subscripts)
 
         # Figure out output ellipses
-        if longest == 0:
-            out_ellipse = ""
-        else:
-            out_ellipse = ellipse_inds[-longest:]
-
+        out_ellipse = "" if longest == 0 else ellipse_inds[-longest:]
         if out_sub:
             subscripts += "->" + output_sub.replace("...", out_ellipse)
         else:
@@ -355,7 +341,7 @@ def parse_einsum_input(operands: Any) -> Tuple[str, str, List[ArrayType]]:
             output_subscript = find_output_str(subscripts)
             normal_inds = "".join(sorted(set(output_subscript) - set(out_ellipse)))
 
-            subscripts += "->" + out_ellipse + normal_inds
+            subscripts += f"->{out_ellipse}{normal_inds}"
 
     # Build output string if does not exist
     if "->" in subscripts:
@@ -366,7 +352,7 @@ def parse_einsum_input(operands: Any) -> Tuple[str, str, List[ArrayType]]:
     # Make sure output subscripts are in the input
     for char in output_subscript:
         if char not in input_subscripts:
-            raise ValueError("Output character '{}' did not appear in the input".format(char))
+            raise ValueError(f"Output character '{char}' did not appear in the input")
 
     # Make sure number operands is equivalent to the number of terms
     if len(input_subscripts.split(",")) != len(operands):

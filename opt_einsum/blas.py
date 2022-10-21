@@ -185,9 +185,7 @@ def tensor_blas(
     keep_right = frozenset(input_right) - idx_removed
 
     # We trust this must be called correctly
-    dimension_dict = {}
-    for i, s in zip(input_left, view_left.shape):
-        dimension_dict[i] = s
+    dimension_dict = dict(zip(input_left, view_left.shape))
     for i, s in zip(input_right, view_right.shape):
         dimension_dict[i] = s
 
@@ -266,6 +264,6 @@ def tensor_blas(
             new_view = np.squeeze(new_view)
 
     if tensor_result != index_result:
-        new_view = np.einsum(tensor_result + "->" + index_result, new_view)
+        new_view = np.einsum(f"{tensor_result}->{index_result}", new_view)
 
     return new_view

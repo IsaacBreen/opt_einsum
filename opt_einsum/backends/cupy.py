@@ -13,10 +13,7 @@ __all__ = ["to_cupy", "build_expression", "evaluate_constants"]
 def to_cupy(array):  # pragma: no cover
     import cupy
 
-    if isinstance(array, np.ndarray):
-        return cupy.asarray(array)
-
-    return array
+    return cupy.asarray(array) if isinstance(array, np.ndarray) else array
 
 
 def build_expression(_, expr):  # pragma: no cover

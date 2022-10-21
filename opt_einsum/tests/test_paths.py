@@ -84,10 +84,7 @@ def assert_contract_order(func, test_data, max_size, benchmark):
 
 def test_size_by_dict():
 
-    sizes_dict = {}
-    for ind, val in zip("abcdez", [2, 5, 9, 11, 13, 0]):
-        sizes_dict[ind] = val
-
+    sizes_dict = dict(zip("abcdez", [2, 5, 9, 11, 13, 0]))
     path_func = oe.helpers.compute_size_by_dict
 
     assert 1 == path_func("", sizes_dict)

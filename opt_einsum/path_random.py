@@ -112,26 +112,15 @@ class RandomOptimizer(paths.PathOptimizer):
         self._parallel = parallel
         self._managing_executor = False
 
-        if parallel is False:
+        if not parallel:
             self._executor = None
             return
 
-        if parallel is True:
-            from concurrent.futures import ProcessPoolExecutor
+        from concurrent.futures import ProcessPoolExecutor
 
-            self._executor = ProcessPoolExecutor()
-            self._managing_executor = True
-            return
-
-        if isinstance(parallel, numbers.Number):
-            from concurrent.futures import ProcessPoolExecutor
-
-            self._executor = ProcessPoolExecutor(parallel)
-            self._managing_executor = True
-            return
-
-        # assume a pool-executor has been supplied
-        self._executor = parallel
+        self._executor = ProcessPoolExecutor()
+        self._managing_executor = True
+        return
 
     def _gen_results_parallel(self, repeats: Iterable[int], trial_fn: Any, args: Any) -> Generator[Any, None, None]:
         """Lazily generate results from an executor without submitting all jobs at once."""
@@ -193,10 +182,9 @@ class RandomOptimizer(paths.PathOptimizer):
             self.costs.append(cost)
             self.sizes.append(size)
 
-            # check if we have found a new best
-            found_new_best = self.better(cost, size, self.best["flops"], self.best["size"])
-
-            if found_new_best:
+            if found_new_best := self.better(
+                cost, size, self.best["flops"], self.best["size"]
+            ):
                 self.best["flops"] = cost
                 self.best["size"] = size
                 self.best["ssa_path"] = ssa_path
